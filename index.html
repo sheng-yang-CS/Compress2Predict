@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Parcours Recherche CentraleSupélec (L2S): information theory and statistics, from compression to prediction.">
+<title>Compress to Predict</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+/* Layout: one reading column (65ch) on a cool paper ground; instruments (game, plots, tree) break out to the full 1040px measure. Bits are always set in mono; "1" is crimson, "0" is teal. */
+:root{
+  --bg:#EDF0F5; --surface:#FFFFFF; --sunk:#E2E7EF; --ink:#131A2B; --muted:#55607A; --rule:#C9D1DE;
+  --one:#C4244F; --zero:#0B7480; --one-soft:#F6D9E1; --zero-soft:#D3ECEE;
+  --display:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E131E; --surface:#171E2D; --sunk:#1F283A; --ink:#E7EBF3; --muted:#9BA6BE; --rule:#2C374C;
+  --one:#FF7092; --zero:#4FCBD6; --one-soft:#4A2130; --zero-soft:#173B41; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E131E; --surface:#171E2D; --sunk:#1F283A; --ink:#E7EBF3; --muted:#9BA6BE; --rule:#2C374C;
+  --one:#FF7092; --zero:#4FCBD6; --one-soft:#4A2130; --zero-soft:#173B41; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.6;padding-inline:20px;padding-block:0 80px}
+.wrap{max-width:1040px;margin-inline:auto;display:flex;flex-direction:column;gap:88px}
+a{color:var(--one);text-underline-offset:3px}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--one);outline-offset:2px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.08;letter-spacing:-0.01em}
+h1{font-size:clamp(2.5rem,7vw,4.6rem);font-weight:700}
+h2{font-size:clamp(1.7rem,3.6vw,2.4rem);font-weight:700}
+h3{font-size:1.2rem;font-weight:500;line-height:1.25}
+p{margin:0}
+.prose{max-width:65ch;display:flex;flex-direction:column;gap:14px}
+.eyebrow{font-family:var(--mono);font-size:.78rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.mono{font-family:var(--mono)}
+.muted{color:var(--muted)}
+.small{font-size:.88rem}
+section{display:flex;flex-direction:column;gap:28px;scroll-margin-top:70px}
+
+nav.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--rule);margin-inline:-20px;padding:10px 20px}
+nav.top ul{list-style:none;margin:0 auto;padding:0;max-width:1040px;display:flex;flex-wrap:wrap;gap:4px 18px;font-family:var(--mono);font-size:.8rem}
+nav.top a{color:var(--muted);text-decoration:none}
+nav.top a:hover{color:var(--ink)}
+
+.hero{padding-top:56px;gap:36px}
+.hero-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:40px;align-items:start}
+.hero-text{display:flex;flex-direction:column;gap:20px;min-width:0}
+.hero-text p{max-width:46ch}
+@media (max-width:860px){.hero-grid{grid-template-columns:minmax(0,1fr)}}
+
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:22px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.panel-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:6px 16px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button{font:inherit;font-family:var(--mono);font-size:.85rem;color:var(--ink);background:var(--sunk);border:1px solid var(--rule);border-radius:4px;padding:8px 14px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button.bit{font-size:1.5rem;font-weight:600;width:72px;height:60px;padding:0;border-width:2px}
+button.bit.b0{color:var(--zero);border-color:var(--zero);background:var(--zero-soft)}
+button.bit.b1{color:var(--one);border-color:var(--one);background:var(--one-soft)}
+.strip{display:flex;justify-content:flex-end;gap:3px;overflow:hidden;height:74px;align-items:flex-end;border-bottom:1px solid var(--rule)}
+.cell{flex:0 0 15px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;font-family:var(--mono);font-size:.82rem;font-weight:600}
+.cell i{display:block;width:9px;background:var(--rule);border-radius:1px 1px 0 0}
+.cell.miss i{background:var(--ink)}
+.cell.c0{color:var(--zero)} .cell.c1{color:var(--one)}
+.figs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.fig{display:flex;flex-direction:column;gap:2px;min-width:0}
+.fig b{font-family:var(--display);font-size:1.7rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.fig span{font-size:.8rem;color:var(--muted);line-height:1.3}
+.verdict{font-size:.95rem;min-height:3.1em}
+[id$="-chart"] svg{display:block;width:100%;height:auto}
+[id$="-chart"] svg text{font-family:var(--mono);font-size:11px;fill:var(--muted)}
+svg .ax{stroke:var(--rule);stroke-width:1;fill:none}
+svg .grid{stroke:var(--rule);stroke-width:1;stroke-dasharray:2 4;fill:none}
+svg .l1{stroke:var(--one);stroke-width:2.2;fill:none}
+svg .l0{stroke:var(--zero);stroke-width:2.2;fill:none}
+svg .ref{stroke:var(--muted);stroke-width:1.4;stroke-dasharray:5 4;fill:none}
+svg text.t1{fill:var(--one);font-weight:600} svg text.t0{fill:var(--zero);font-weight:600} svg text.ti{fill:var(--ink)}
+.scroll{overflow-x:auto}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+@media (max-width:860px){.two{grid-template-columns:minmax(0,1fr)}}
+label.slider{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-family:var(--mono);font-size:.85rem}
+input[type=range]{accent-color:var(--one);flex:1 1 160px;min-width:0}
+
+.pipe{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;font-size:.9rem}
+.pipe div{flex:1 1 150px;border:1px solid var(--rule);border-radius:4px;padding:12px 14px;background:var(--surface);min-width:0}
+.pipe div b{display:block;font-family:var(--mono);font-size:.8rem;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px}
+.pipe .arrow{flex:0 0 auto;border:0;background:none;padding:0;align-self:center;font-family:var(--mono);color:var(--muted)}
+.ivl{display:flex;flex-direction:column;gap:10px}
+.ivl-row{display:grid;grid-template-columns:130px minmax(0,1fr);gap:12px;align-items:center;font-family:var(--mono);font-size:.8rem}
+.ivl-bar{position:relative;height:16px;background:var(--sunk);border-radius:2px}
+.ivl-bar i{position:absolute;top:0;bottom:0;background:var(--one);border-radius:2px;min-width:2px}
+@media (max-width:520px){.ivl-row{grid-template-columns:minmax(0,1fr)}}
+
+.maths{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;border-top:1px solid var(--rule)}
+.maths article{padding:24px 24px 24px 0;border-bottom:1px solid var(--rule);display:flex;flex-direction:column;gap:10px;min-width:0}
+.maths article:nth-child(even){padding-left:24px;padding-right:0;border-left:1px solid var(--rule)}
+@media (max-width:760px){.maths{grid-template-columns:minmax(0,1fr)}.maths article,.maths article:nth-child(even){padding:22px 0;border-left:0}}
+.formula{overflow-x:auto;padding:6px 0;font-size:1.02rem}
+
+.phases{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-top:3px solid var(--ink)}
+.phase{padding:18px 18px 4px 0;display:flex;flex-direction:column;gap:10px;min-width:0}
+.phase + .phase{padding-left:18px;border-left:1px solid var(--rule)}
+.phase .when{font-family:var(--mono);font-size:.78rem;color:var(--muted)}
+.phase dl{margin:0;display:flex;flex-direction:column;gap:8px;font-size:.9rem;line-height:1.45}
+.phase dt{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.phase dd{margin:0}
+@media (max-width:900px){.phases{grid-template-columns:repeat(2,minmax(0,1fr))}.phase:nth-child(3){padding-left:0;border-left:0}.phase:nth-child(n+3){border-top:1px solid var(--rule)}}
+@media (max-width:560px){.phases{grid-template-columns:minmax(0,1fr)}.phase,.phase + .phase{padding-left:0;border-left:0;border-top:1px solid var(--rule)}.phase:first-child{border-top:0}}
+
+table{border-collapse:collapse;width:100%;font-size:.92rem;line-height:1.45}
+th,td{text-align:left;vertical-align:top;padding:11px 16px 11px 0;border-bottom:1px solid var(--rule)}
+th{font-family:var(--mono);font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+td:first-child{font-weight:600;white-space:nowrap}
+.tbl{overflow-x:auto}
+.tbl table{min-width:620px}
+.gloss{columns:2 300px;column-gap:40px;margin:0;padding:0;list-style:none;font-size:.93rem}
+.gloss li{break-inside:avoid;display:flex;justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid var(--rule)}
+.gloss li span:last-child{color:var(--muted);text-align:right;font-style:italic}
+.empty{border:1px dashed var(--rule);border-radius:6px;padding:22px;color:var(--muted);font-size:.95rem;max-width:65ch}
+.log{display:flex;flex-direction:column;gap:0;max-width:65ch}
+.log div{display:grid;grid-template-columns:130px minmax(0,1fr);gap:16px;padding:12px 0;border-bottom:1px solid var(--rule);font-size:.95rem}
+.log div span:first-child{font-family:var(--mono);font-size:.8rem;color:var(--muted);padding-top:3px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px;font-size:.95rem}
+.facts div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.facts b{font-family:var(--mono);font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.sel{user-select:all;font-family:var(--mono);font-size:.88rem;overflow-wrap:anywhere}
+.tree-legend{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:.84rem;color:var(--muted)}
+.tree-legend i{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:-1px;margin-right:6px}
+.phases.core{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:560px){.phases.core{grid-template-columns:minmax(0,1fr)}}
+.dir-q{font-weight:600}
+.sub{display:flex;flex-direction:column;gap:6px;max-width:65ch}
+</style>
+</head>
+<body>
+
+<nav class="top" aria-label="Sections"><ul>
+  <li><a href="#play">Play</a></li><li><a href="#idea">The idea</a></li><li><a href="#maths">The maths</a></li>
+  <li><a href="#roadmap">Roadmap</a></li><li><a href="#reading">Reading</a></li><li><a href="#horizon">Horizon</a></li>
+  <li><a href="#glossary">Glossary</a></li><li><a href="#practical">Practical</a></li>
+</ul></nav>
+
+<div class="wrap">
+
+<section class="hero" id="play">
+  <div class="hero-grid">
+    <div class="hero-text">
+      <p class="eyebrow">Parcours Recherche · CentraleSupélec · L2S</p>
+      <h1>Try to be unpredictable.</h1>
+      <p>Type 0s and 1s. Before each bit, an algorithm has already guessed it. You will build predictors like this one during the project, and prove how good they can be.</p>
+      <p>A language model does the same job with words instead of bits. It predicts the next one. This project studies the case where we can prove everything.</p>
+      <p class="small muted">A fair coin costs the machine exactly 1 bit per symbol. Every pattern in your sequence makes it cheaper. Predicting well and compressing well are the same task.</p>
+    </div>
+
+    <div class="panel" id="game">
+      <div class="panel-head">
+        <h3>You against the predictor</h3>
+        <span class="small muted" id="g-tag">Example sequence, written to imitate a person avoiding long runs</span>
+      </div>
+      <div class="strip" id="g-strip" aria-label="Your sequence. Bar height is the machine's surprise at each bit."></div>
+      <p class="small muted">Bar height: how surprised the machine was, in bits. Dark bars: you fooled it.</p>
+      <div class="controls">
+        <button class="bit b0" id="g-0" aria-label="Play 0">0</button>
+        <button class="bit b1" id="g-1" aria-label="Play 1">1</button>
+        <button id="g-clear">Clear and play</button>
+        <button id="g-example">Load example</button>
+      </div>
+      <p class="verdict" id="g-verdict" aria-live="polite"></p>
+      <div class="figs">
+        <div class="fig"><b id="g-hit">–</b><span>of its guesses were right</span></div>
+        <div class="fig"><b id="g-ctw">–</b><span>bits per symbol, context trees (CTW)</span></div>
+        <div class="fig"><b id="g-kt">–</b><span>bits per symbol, counting only (KT)</span></div>
+      </div>
+      <div id="g-chart"></div>
+      <p class="small muted">Two predictors play against you. KT only counts: after <i>n</i> symbols with <i>n</i><sub>1</sub> ones, it gives the next 1 the probability (<i>n</i><sub>1</sub> + ½) / (<i>n</i> + 1). This is the +½ rule. CTW also looks at the bits you played just before.</p>
+      <p class="small muted">Keyboard: press 0 or 1. The machine starts knowing nothing, so the first symbols are expensive. That extra cost is called redundancy, and it is the subject of this project.</p>
+    </div>
+  </div>
+</section>
+
+<section id="idea">
+  <div class="prose">
+    <p class="eyebrow">The idea</p>
+    <h2>A good compressor is a good predictor</h2>
+    <p>Give a probability \(Q(y_i \mid y_1 \dots y_{i-1})\) to each next symbol. An arithmetic coder turns these probabilities into a file of about \(-\log_2 Q(y_1 \dots y_n)\) bits. The better the predictions, the shorter the file.</p>
+    <p>If you know the true law \(P_\theta\) of the source, you use it and you reach the entropy, which is Shannon's limit. The interesting case is when you do not know \(\theta\). The extra bits you pay are the redundancy:</p>
+    <div class="formula">\[ R_n(\theta, Q) \;=\; \mathbb{E}_{P_\theta}\!\left[\log_2 \frac{P_\theta(Y^n)}{Q(Y^n)}\right] \;=\; D\!\left(P_\theta^n \,\|\, Q\right) \;\ge\; 0 . \]</div>
+    <p>The first question of the project: how small can the redundancy be, and which \(Q\) achieves it?</p>
+    <p>For a coin of unknown bias, the answer is a rule you can state in one line. After \(n\) symbols, of which \(n_1\) are ones, predict</p>
+    <div class="formula">\[ Q(\text{next} = 1 \mid y_1 \dots y_n) \;=\; \frac{n_1 + \tfrac12}{n + 1} . \]</div>
+    <p>This is the +½ rule, also called KT after Krichevsky and Trofimov. Why ½ and not 0 or 1 is one of the first things you will prove.</p>
+  </div>
+
+  <div class="pipe" aria-label="From source to bits">
+    <div><b>Source</b>Produces symbols with a law nobody tells you.</div>
+    <span class="arrow">→</span>
+    <div><b>Predictor Q</b>Gives a probability to each possible next symbol.</div>
+    <span class="arrow">→</span>
+    <div><b>Arithmetic coder</b>Keeps an interval of width Q(sequence so far).</div>
+    <span class="arrow">→</span>
+    <div><b>Bits</b>About −log₂ of the final width.</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>The interval shrinks with each symbol</h3><span class="small muted">Sequence 1 1 0 1, predicted with the +½ rule</span></div>
+    <div class="ivl" id="ivl"></div>
+    <p class="small muted" id="ivl-note"></p>
+  </div>
+</section>
+
+<section id="maths">
+  <div class="prose">
+    <p class="eyebrow">The maths you will do</p>
+    <h2>Probability, analysis, combinatorics, and one algorithm</h2>
+    <p>Everything in the first months uses tools from your preparatory classes. Each one answers a concrete question here.</p>
+  </div>
+
+  <div class="maths">
+    <article>
+      <h3>Probability</h3>
+      <p>The law of large numbers, applied to the logarithm of a probability, makes entropy appear as a limit.</p>
+      <div class="formula">\[ -\frac1n \log_2 P_\theta(Y_1,\dots,Y_n) \;\longrightarrow\; H(P_\theta) \]</div>
+      <p class="small muted">Then Bayes' rule, Beta laws, and Markov chains with a memory of variable length.</p>
+    </article>
+    <article>
+      <h3>Analysis</h3>
+      <p>Average the Bernoulli law over \(\theta\) with weight \(1/\sqrt{\theta(1-\theta)}\). A Beta integral gives a closed form.</p>
+      <div class="formula">\[ Q_{\mathrm{KT}}(y^n) \;=\; \frac{\Gamma\!\left(n_1+\tfrac12\right)\Gamma\!\left(n_0+\tfrac12\right)}{\pi\,\Gamma(n+1)} \]</div>
+      <p class="small muted">Stirling's formula then shows that its redundancy is \(\tfrac12\log_2 n + O(1)\). Convexity and Jensen's inequality give \(D \ge 0\).</p>
+    </article>
+    <article>
+      <h3>Combinatorics</h3>
+      <p>Count the sequences with \(k\) ones among \(n\).</p>
+      <div class="formula">\[ \binom{n}{k} \;\approx\; 2^{\,n\,h(k/n)} \]</div>
+      <p>Kraft's inequality says which lengths \(\ell_i\) a prefix code can have.</p>
+      <div class="formula">\[ \sum_{i} 2^{-\ell_i} \;\le\; 1 \]</div>
+      <p class="small muted">Put together: naming one sequence among \(N\) takes \(\log_2 N\) bits, so a sequence with \(k\) ones costs about \(n\,h(k/n)\) bits. Entropy appears a second time, with no probability at all.</p>
+    </article>
+    <article>
+      <h3>Algorithms</h3>
+      <p>The number of context trees grows doubly exponentially with the depth <i>D</i>, roughly like 1.5<sup>2<sup><i>D</i></sup></sup>. At depth 6 there are already more than 200 billion. One recursion sums over all of them in linear time.</p>
+      <div class="formula">\[ P_w^{\,s} \;=\; \tfrac12\,P_e^{\,s} \;+\; \tfrac12\,P_w^{\,0s}\,P_w^{\,1s} \]</div>
+      <p class="small muted">This is the context-tree direction of the project. You prove this identity, program it, and check it against brute force on small trees.</p>
+    </article>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <div class="panel-head"><h3>The +½ rule at work</h3><span class="small muted" id="b-count"></span></div>
+      <label class="slider" for="b-theta">true θ <input type="range" id="b-theta" min="0.02" max="0.98" step="0.01" value="0.3"><span id="b-theta-v">0.30</span></label>
+      <div id="b-chart"></div>
+      <div class="controls"><button id="b-1">Draw 1</button><button id="b-20">Draw 20</button><button id="b-500">Draw 500</button><button id="b-reset">Reset</button></div>
+      <p class="small" id="b-note"></p>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>The price of not knowing θ</h3><span class="small muted">Exact expected redundancy, in bits</span></div>
+      <label class="slider" for="r-theta">true θ <input type="range" id="r-theta" min="0.01" max="0.5" step="0.01" value="0.05"><span id="r-theta-v">0.05</span></label>
+      <div id="r-chart"></div>
+      <p class="small" id="r-note"></p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>A context tree that learns its own shape</h3><span class="small muted" id="t-count"></span></div>
+    <p class="small muted" style="max-width:75ch">The source below has a memory of variable length. If the last symbol was 1, nothing else matters. If it was 0, the symbol before also matters. CTW is not told this. Each circle shows how much it believes that this context is a leaf of the true tree. At the start it hesitates about the context 0, because the two laws behind it (1/3 and 1/4) are close. Draw a few thousand symbols and watch it decide.</p>
+    <div class="scroll"><div id="t-chart" style="min-width:640px"></div></div>
+    <div class="tree-legend">
+      <span><i style="background:var(--one)"></i>Filled: CTW believes this context is a leaf</span>
+      <span><i style="border:2px solid var(--ink)"></i>Ring: a real leaf of the source</span>
+      <span><i style="border:2px dashed var(--zero)"></i>Dashed: contexts active for the next symbol</span>
+    </div>
+    <div class="controls"><button id="t-1">Draw 1</button><button id="t-50">Draw 100</button><button id="t-500">Draw 1000</button><button id="t-reset">Reset</button></div>
+    <p class="small" id="t-note" aria-live="polite"></p>
+  </div>
+</section>
+
+<section id="roadmap">
+  <div class="prose">
+    <p class="eyebrow">Roadmap</p>
+    <h2>A common core, then one direction</h2>
+    <p>About 25 days in the lab, one day a week. The first ten sessions are the same whatever comes next. Around January we choose one direction together, once you know the tools and your own taste.</p>
+    <p>The core is a complete piece of work in itself. Each step has something to prove, something to program, and something to show.</p>
+  </div>
+  <div class="phases core">
+    <div class="phase">
+      <span class="when">Core, part 1 · about 4 sessions</span>
+      <h3>When the source is known</h3>
+      <dl>
+        <dt>Key notions</dt><dd>Entropy H, prefix codes and their average length L, cross-entropy, divergence D.</dd>
+        <dt>Prove</dt><dd>Kraft's inequality, D ≥ 0, and H ≤ L &lt; H + 1.</dd>
+        <dt>Program</dt><dd>Huffman, then arithmetic coding. Measured length against entropy.</dd>
+        <dt>Present</dt><dd>A 20-minute explanation at the board, no slides. Questions are there to understand together, not to grade. Afterwards, one proof written up on a page.</dd>
+      </dl>
+    </div>
+    <div class="phase">
+      <span class="when">Core, part 2 · about 6 sessions</span>
+      <h3>When it is not</h3>
+      <dl>
+        <dt>Key notions</dt><dd>Redundancy, prior and posterior, mixture, the +½ rule.</dd>
+        <dt>Prove</dt><dd>The mixture minimises average redundancy. The KT formula. The bound ½ log₂ n + 1.</dd>
+        <dt>Program</dt><dd>The redundancy plot above, by simulation, for several predictors.</dd>
+        <dt>Hand in</dt><dd>A short report written like a paper: the question, the proofs, your plots. We go through it together, then choose the direction.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="sub">
+    <h3>Then one direction, about 15 sessions</h3>
+    <p class="muted">Four examples of where the year can go. All of them use the two objects of the core, a divergence and a mixture. The year ends with a report and a talk at the group seminar.</p>
+  </div>
+  <div class="maths">
+    <article>
+      <h3>Context trees</h3>
+      <p class="dir-q">How do you predict a source whose memory length is unknown?</p>
+      <p class="small muted">Prove that one recursion computes a mixture over all trees, and bound its redundancy. Program binary CTW and test it on text against gzip. The tree above belongs to this direction.</p>
+    </article>
+    <article>
+      <h3>Model selection</h3>
+      <p class="dir-q">How many parameters does the data justify?</p>
+      <p class="small muted">Each parameter costs about ½ log₂ n bits. Prove that this turns code length into a rule for choosing a model. Program it to find the order of a Markov chain from data.</p>
+    </article>
+    <article>
+      <h3>Testing and large deviations</h3>
+      <p class="dir-q">How fast can you tell two laws apart?</p>
+      <p class="small muted">Count sequences by their type, then prove Sanov's theorem and Stein's lemma on a finite alphabet. Program tests and compare their error rates with the predicted exponent.</p>
+    </article>
+    <article>
+      <h3>Limits of estimation</h3>
+      <p class="dir-q">What can no estimator do?</p>
+      <p class="small muted">Prove Fano's inequality and a first minimax lower bound. Program estimators on a large alphabet, and estimate the probability of symbols never seen so far.</p>
+    </article>
+  </div>
+
+  <div class="sub">
+    <h3>Can this lead to a publication?</h3>
+    <p>Yes, it can. If the results are good, the work can be written up as a research paper, usually a short conference paper or a preprint. This takes extra work beyond the one day a week, and it often continues into a second year.</p>
+  </div>
+</section>
+
+<section id="reading">
+  <div class="prose">
+    <p class="eyebrow">Reading</p>
+    <h2>One main text at a time</h2>
+    <p>You never need to read a whole book. Each step has one main reading, with precise pages given in the session notes.</p>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Step</th><th>Main reading</th><th>To go further</th></tr></thead>
+    <tbody>
+      <tr><td>Core, part 1</td><td>Cover &amp; Thomas, <i>Elements of Information Theory</i>, ch. 2 and 5</td><td>MacKay, ch. 4 and 5</td></tr>
+      <tr><td>Core, part 2</td><td>MacKay, <i>Information Theory, Inference, and Learning Algorithms</i>, ch. 6. <a href="https://www.inference.org.uk/mackay/itila/">Free online</a></td><td>Cover &amp; Thomas, ch. 13</td></tr>
+      <tr><td>Context trees</td><td>Willems, Shtarkov, Tjalkens, “The context-tree weighting method: basic properties”, IEEE Trans. Inf. Theory, 1995</td><td>Catoni, <i>Statistical Learning Theory and Stochastic Optimization</i>, first chapters. Papageorgiou &amp; Kontoyiannis, Bayesian context trees for time series, 2025</td></tr>
+      <tr><td>Model selection</td><td>Gassiat, <i>Universal Coding and Order Identification by Model Selection Methods</i> (also in French)</td><td>Rissanen, “Universal coding, information, prediction, and estimation”, IEEE Trans. Inf. Theory, 1984</td></tr>
+      <tr><td>Testing</td><td>Cover &amp; Thomas, ch. 11</td><td>Csiszár &amp; Shields, <i>Information Theory and Statistics: A Tutorial</i></td></tr>
+      <tr><td>Estimation</td><td>Cover &amp; Thomas, ch. 2 (Fano's inequality)</td><td>Tsybakov, <i>Introduction to Nonparametric Estimation</i>, ch. 2</td></tr>
+      <tr><td>Any direction</td><td>Cesa-Bianchi &amp; Lugosi, <i>Prediction, Learning, and Games</i>, ch. 9</td><td>Same book, ch. 2</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="horizon">
+  <div class="prose">
+    <p class="eyebrow">Horizon</p>
+    <h2>Questions that are still open</h2>
+    <p>Each direction leads to questions nobody has fully answered. Three examples.</p>
+    <p><b>What has a language model learned?</b> A language model predicts the next word and is judged by log-loss, like every predictor on this page. For sources with a tree-shaped memory we know the best possible predictor exactly. How close does a trained model come to it, and how fast? What a context-tree predictor and a language model share, and where they differ?</p>
+    <p><b>A very large alphabet.</b> With \(m\) symbols, the cost of each context is bounded by about \(\tfrac{m-1}{2}\log_2 n\) bits. For tens of thousands of words this bound is too large to be useful. Which estimators pay less when only a few symbols really occur?</p>
+    <p><b>Data that follow no model.</b> Real data are not drawn from any law in your family. Which guarantees survive? Bounds that hold for every individual sequence give one answer, and they are far from complete.</p>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>Context tree weighting</th><th>Language model</th></tr></thead>
+    <tbody>
+      <tr><td>Output</td><td>A law on the next symbol</td><td>A law on the next token</td></tr>
+      <tr><td>Judged by</td><td>Log-loss, which is code length</td><td>Log-loss, called cross-entropy</td></tr>
+      <tr><td>Alphabet</td><td>Small, often binary</td><td>Tens of thousands of tokens</td></tr>
+      <tr><td>Contexts</td><td>Exact suffixes of the past</td><td>Learned notion of similar pasts</td></tr>
+      <tr><td>Learning</td><td>Online, from the sequence itself</td><td>Offline on a large corpus, then adapted by the prompt</td></tr>
+      <tr><td>Guarantees</td><td>Proved redundancy bounds</td><td>Mostly empirical</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="notebook" hidden>
+  <div class="prose">
+    <p class="eyebrow">Notebook</p>
+    <h2>Week by week</h2>
+    <p>Once the project starts, this section is where you come back each week.</p>
+  </div>
+  <div class="log" id="log"></div>
+  <div class="empty" id="sessions-empty">No sessions yet. From the first session, each week gets three lines here: the goal of the day, the exercise to write up, and the reading for next time.</div>
+</section>
+
+<section id="glossary">
+  <div class="prose">
+    <p class="eyebrow">Glossary</p>
+    <h2>English, with the French you already know</h2>
+    <p>The books, the papers and the group seminar are in English. These are the words you will meet first.</p>
+  </div>
+  <ul class="gloss">
+    <li><span>source</span><span>source</span></li>
+    <li><span>i.i.d.</span><span>indépendantes et identiquement distribuées</span></li>
+    <li><span>entropy</span><span>entropie</span></li>
+    <li><span>lossless compression</span><span>compression sans perte</span></li>
+    <li><span>prefix code</span><span>code préfixe</span></li>
+    <li><span>codeword length</span><span>longueur du mot de code</span></li>
+    <li><span>redundancy</span><span>redondance</span></li>
+    <li><span>relative entropy, KL divergence</span><span>entropie relative, divergence de Kullback-Leibler</span></li>
+    <li><span>likelihood</span><span>vraisemblance</span></li>
+    <li><span>prior</span><span>loi a priori</span></li>
+    <li><span>posterior</span><span>loi a posteriori</span></li>
+    <li><span>mixture</span><span>mélange</span></li>
+    <li><span>estimator</span><span>estimateur</span></li>
+    <li><span>log-loss</span><span>perte logarithmique</span></li>
+    <li><span>context tree</span><span>arbre de contexte</span></li>
+    <li><span>Markov chain</span><span>chaîne de Markov</span></li>
+    <li><span>law of large numbers</span><span>loi des grands nombres</span></li>
+    <li><span>upper bound, lower bound</span><span>majorant, minorant</span></li>
+    <li><span>model selection</span><span>sélection de modèle</span></li>
+    <li><span>hypothesis test</span><span>test d'hypothèses</span></li>
+    <li><span>large deviations</span><span>grandes déviations</span></li>
+    <li><span>minimax risk</span><span>risque minimax</span></li>
+  </ul>
+</section>
+
+<section id="practical">
+  <div class="prose">
+    <p class="eyebrow">Practical</p>
+    <h2>Working in the lab</h2>
+  </div>
+  <div class="facts">
+    <div><b>Supervisor</b><span>Sheng Yang, Professor</span><span class="muted small">Laboratoire des Signaux et Systèmes (L2S), CentraleSupélec</span></div>
+    <div><b>Rhythm</b><span>About one day a week in the lab</span><span class="muted small">Group seminar, with PhD students and postdocs</span></div>
+    <div><b>What you need</b><span>A real taste for mathematics</span><span class="muted small">Some Python helps. </span></div>
+    <div><b>Contact</b><span class="sel">sheng.yang@centralesupelec.fr</span><span class="muted small"></span></div>
+  </div>
+</section>
+
+</div>
+
+<script src="notebook.js"></script>
+<script>
+window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg:{fontCache:'global'},options:{enableMenu:false}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" async></script>
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id)};
+var LN2=Math.LN2;
+function lgamma(x){
+  var c=[76.18009172947146,-86.50532032941677,24.01409824083091,-1.231739572450155,0.1208650973866179e-2,-0.5395239384953e-5];
+  var y=x,t=x+5.5; t-=(x+0.5)*Math.log(t); var s=1.000000000190015;
+  for(var j=0;j<6;j++){y+=1;s+=c[j]/y}
+  return -t+Math.log(2.5066282746310005*s/x);
+}
+function logaddexp(a,b){var m=Math.max(a,b);return m+Math.log(Math.exp(a-m)+Math.exp(b-m))}
+function rng(seed){var a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function fmt(x,d){return x.toFixed(d)}
+
+/* ---- Context tree weighting, binary, depth D. Contexts are written in time order; history starts as zeros. ---- */
+function CTW(D){this.D=D;this.nodes=new Map();this.hist=[]}
+CTW.prototype.get=function(k){return this.nodes.get(k)||{a:0,b:0,le:0,lw:0}};
+CTW.prototype.ctx=function(d){var s="",n=this.hist.length;for(var i=d;i>=1;i--){s+=(n-i>=0?this.hist[n-i]:0)}return s};
+CTW.prototype.step=function(bit,commit){
+  var D=this.D,full=this.ctx(D),rootOld=this.get("").lw,childLw=0,lw2=0;
+  for(var d=D;d>=0;d--){
+    var key=full.slice(D-d),node=this.get(key);
+    var c=bit?node.b:node.a;
+    var le2=node.le+Math.log((c+0.5)/(node.a+node.b+1));
+    if(d===D){lw2=le2}else{
+      var older=full[D-d-1],otherKey=(older==="0"?"1":"0")+key;
+      lw2=Math.log(0.5)+logaddexp(le2,childLw+this.get(otherKey).lw);
+    }
+    if(commit){this.nodes.set(key,{a:node.a+(bit?0:1),b:node.b+(bit?1:0),le:le2,lw:lw2})}
+    childLw=lw2;
+  }
+  if(commit)this.hist.push(bit);
+  return Math.exp(lw2-rootOld);
+};
+
+/* ---- Game ---- */
+var EXAMPLE="0110100101101001011010110100101101001011010011010010110100101101".split("").map(Number);
+var seq=EXAMPLE.slice(),isExample=true,lastMsg="";
+function runGame(s){
+  var ctw=new CTW(6),a=0,b=0,rows=[],cK=0,cC=0,guesses=0,hits=0;
+  for(var i=0;i<s.length;i++){
+    var y=s[i],p1=ctw.step(1,false);
+    var guess=Math.abs(p1-0.5)<1e-9?null:(p1>0.5?1:0);
+    var qC=y?p1:1-p1,qK=((y?b:a)+0.5)/(a+b+1);
+    ctw.step(y,true); if(y)b++;else a++;
+    cK-=Math.log(qK)/LN2; cC-=Math.log(qC)/LN2;
+    if(guess!==null){guesses++;if(guess===y)hits++}
+    rows.push({y:y,guess:guess,s:-Math.log(qC)/LN2,cK:cK,cC:cC});
+  }
+  return {rows:rows,guesses:guesses,hits:hits,cK:cK,cC:cC};
+}
+function drawGame(){
+  var g=runGame(seq),n=seq.length,rows=g.rows;
+  var strip=$("g-strip");strip.textContent="";
+  rows.slice(-60).forEach(function(r){
+    var c=document.createElement("div");c.className="cell c"+r.y+(r.guess!==null&&r.guess!==r.y?" miss":"");
+    var bar=document.createElement("i");bar.style.height=Math.round(Math.min(r.s,3)/3*40+2)+"px";
+    c.appendChild(bar);c.appendChild(document.createTextNode(r.y));strip.appendChild(c);
+  });
+  $("g-tag").textContent=isExample?"Example sequence, written to imitate a person avoiding long runs":"Your sequence, "+n+" symbol"+(n===1?"":"s");
+  $("g-hit").textContent=g.guesses?Math.round(100*g.hits/g.guesses)+"%":"–";
+  $("g-ctw").textContent=n?fmt(g.cC/n,2):"–";
+  $("g-kt").textContent=n?fmt(g.cK/n,2):"–";
+  var v=$("g-verdict");
+  if(n===0){v.textContent="Play your first bit. The machine has no information yet, so it does not guess."}
+  else if(n<20){v.textContent=lastMsg+" Keep going: it needs about 20 symbols to learn your habits."}
+  else{
+    var rate=g.cC/n,head=lastMsg?lastMsg+" ":"";
+    if(rate<0.9)v.textContent=head+"This sequence is compressible. The machine writes it in "+fmt(g.cC,0)+" bits instead of "+n+".";
+    else if(rate<=1.02)v.textContent=head+"Close to a fair coin. The machine cannot do much better than 1 bit per symbol.";
+    else v.textContent=head+"The machine is still paying to learn: "+fmt(g.cC,0)+" bits for "+n+" symbols.";
+  }
+  /* chart: cumulative code length */
+  var W=520,H=230,ml=40,mr=74,mt=14,mb=34,N=Math.max(n,32),top=Math.max(N,g.cK,g.cC);
+  var X=function(i){return ml+(W-ml-mr)*i/N},Y=function(v){return H-mb-(H-mt-mb)*v/top};
+  var pK="M"+X(0)+","+Y(0),pC=pK;
+  rows.forEach(function(r,i){pK+="L"+X(i+1).toFixed(1)+","+Y(r.cK).toFixed(1);pC+="L"+X(i+1).toFixed(1)+","+Y(r.cC).toFixed(1)});
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Cumulative code length against number of symbols">';
+  s+='<path class="ax" d="M'+ml+','+mt+'V'+(H-mb)+'H'+(W-mr)+'"/>';
+  var tick=N<=40?8:N<=120?20:N<=260?50:100;
+  for(var t=0;t<=N;t+=tick){s+='<text x="'+X(t)+'" y="'+(H-mb+15)+'" text-anchor="middle">'+t+'</text>'}
+  for(t=tick;t<=top;t+=tick){s+='<path class="grid" d="M'+ml+','+Y(t)+'H'+(W-mr)+'"/><text x="'+(ml-6)+'" y="'+(Y(t)+4)+'" text-anchor="end">'+t+'</text>'}
+  s+='<text x="'+(W-mr)+'" y="'+(H-4)+'" text-anchor="end">symbols played</text><text x="'+ml+'" y="10" text-anchor="start">bits</text>';
+  s+='<path class="ref" d="M'+X(0)+','+Y(0)+'L'+X(N)+','+Y(N)+'"/>';
+  var labels=[{y:Y(N),x:X(N),t:"fair coin",c:""}];
+  if(n){s+='<path class="l0" d="'+pK+'"/><path class="l1" d="'+pC+'"/>';
+    labels.push({y:Y(g.cK),x:X(n),t:"KT "+fmt(g.cK,0),c:"t0"},{y:Y(g.cC),x:X(n),t:"CTW "+fmt(g.cC,0),c:"t1"})}
+  labels.sort(function(p,q){return p.y-q.y});
+  for(var i=1;i<labels.length;i++){if(labels[i].y-labels[i-1].y<13)labels[i].y=labels[i-1].y+13}
+  labels.forEach(function(l){s+='<text class="'+l.c+'" x="'+(Math.min(l.x,W-mr)+6)+'" y="'+(l.y+4)+'">'+l.t+'</text>'});
+  $("g-chart").innerHTML=s+'</svg>';
+}
+function play(bit){
+  if(isExample){seq=[];isExample=false}
+  if(seq.length>=400)seq.shift();
+  var g=runGame(seq),ctw=new CTW(6);seq.forEach(function(y){ctw.step(y,true)});
+  var p1=ctw.step(1,false),guess=Math.abs(p1-0.5)<1e-9?null:(p1>0.5?1:0);
+  lastMsg=guess===null?"No guess this time.":(guess===bit?"It guessed "+guess+". You played "+bit+". It was right.":"It guessed "+guess+". You played "+bit+". You fooled it.");
+  seq.push(bit);drawGame();
+}
+$("g-0").addEventListener("click",function(){play(0)});
+$("g-1").addEventListener("click",function(){play(1)});
+$("g-clear").addEventListener("click",function(){seq=[];isExample=false;lastMsg="";drawGame()});
+$("g-example").addEventListener("click",function(){seq=EXAMPLE.slice();isExample=true;lastMsg="";drawGame()});
+document.addEventListener("keydown",function(e){
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  var t=e.target&&e.target.tagName;if(t==="INPUT"||t==="TEXTAREA")return;
+  if(e.key==="0")play(0);else if(e.key==="1")play(1);
+});
+
+/* ---- Arithmetic coding interval ---- */
+(function(){
+  var s=[1,1,0,1],a=0,b=0,lo=0,w=1,box=$("ivl");
+  s.forEach(function(y,i){
+    var p1=(b+0.5)/(a+b+1);
+    if(y){lo=lo+w*(1-p1);w=w*p1;b++}else{w=w*(1-p1);a++}
+    var row=document.createElement("div");row.className="ivl-row";
+    var lab=document.createElement("span");lab.textContent="after "+s.slice(0,i+1).join(" ");
+    var bar=document.createElement("div");bar.className="ivl-bar";
+    var f=document.createElement("i");f.style.left=(100*lo)+"%";f.style.width=(100*w)+"%";
+    bar.appendChild(f);row.appendChild(lab);row.appendChild(bar);box.appendChild(row);
+  });
+  $("ivl-note").textContent="Final width "+w.toFixed(4)+". Naming a point inside it takes about −log₂("+w.toFixed(4)+") = "+(-Math.log(w)/LN2).toFixed(2)+" bits.";
+})();
+
+/* ---- Beta posterior (+1/2 rule) ---- */
+var bRand=rng(7),bN1=0,bN0=0;
+/* The first 12 draws are seeded so the page always opens on the same picture. Every later draw uses fresh randomness. */
+function bDraw(k,seeded){var th=+$("b-theta").value,r=seeded?bRand:Math.random;for(var i=0;i<k;i++){if(r()<th)bN1++;else bN0++}drawBeta()}
+function drawBeta(){
+  var th=+$("b-theta").value,n=bN1+bN0,al=bN1+0.5,be=bN0+0.5;
+  $("b-theta-v").textContent=fmt(th,2);
+  var W=460,H=210,ml=14,mr=14,mt=26,mb=30,pts=[],mx=-Infinity;
+  var xs=[],pm=al/(al+be),sd=Math.sqrt(al*be/((al+be)*(al+be)*(al+be+1)));
+  for(var i=0;i<=240;i++)xs.push(0.004+0.992*i/240);
+  for(i=-60;i<=60;i++){var xf=pm+sd*i/10;if(xf>0.004&&xf<0.996)xs.push(xf)}
+  xs.sort(function(p,q){return p-q});
+  xs.forEach(function(x){var l=(al-1)*Math.log(x)+(be-1)*Math.log(1-x);pts.push([x,l]);if(l>mx)mx=l});
+  var X=function(x){return ml+(W-ml-mr)*x},Y=function(v){return H-mb-(H-mt-mb)*v};
+  var d="M"+X(pts[0][0])+","+Y(0);
+  pts.forEach(function(p){d+="L"+X(p[0]).toFixed(1)+","+Y(Math.exp(p[1]-mx)).toFixed(1)});
+  d+="L"+X(pts[pts.length-1][0])+","+Y(0)+"Z";
+  var kt=al/(n+1);
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Posterior density of theta">';
+  s+='<path d="'+d+'" style="fill:var(--one-soft);stroke:var(--one);stroke-width:2"/>';
+  s+='<path class="ax" d="M'+ml+','+(H-mb)+'H'+(W-mr)+'"/>';
+  [0,0.25,0.5,0.75,1].forEach(function(t){s+='<text x="'+X(t)+'" y="'+(H-mb+16)+'" text-anchor="middle">'+t+'</text>'});
+  s+='<path class="ref" d="M'+X(th)+','+(mt-4)+'V'+(H-mb)+'"/>';
+  s+='<path class="l1" d="M'+X(kt)+','+(H-mb)+'v-10"/>';
+  var ax=th>0.5?"end":"start",dx=th>0.5?-6:6;
+  s+='<text class="ti" x="'+(X(th)+dx)+'" y="'+(mt-10)+'" text-anchor="'+ax+'">true θ</text>';
+  $("b-chart").innerHTML=s+'</svg>';
+  $("b-count").textContent=n+" symbols: "+bN1+" ones, "+bN0+" zeros";
+  $("b-note").textContent="Belief about θ after the data. The +½ rule predicts P(next = 1) = ("+bN1+" + ½) / ("+n+" + 1) = "+fmt(kt,3)+"."+(n?" The frequency alone would say "+fmt(bN1/n,3)+". Nearly all of the belief lies between "+fmt(Math.max(0,pm-2*sd),3)+" and "+fmt(Math.min(1,pm+2*sd),3)+", and this range shrinks like 1/√n.":" Before any data, the weight sits near 0 and 1.");
+}
+$("b-theta").addEventListener("input",function(){bN1=0;bN0=0;bRand=rng(7);bDraw(12,true)});
+$("b-1").addEventListener("click",function(){bDraw(1)});
+$("b-20").addEventListener("click",function(){bDraw(20)});
+$("b-500").addEventListener("click",function(){bDraw(500)});
+$("b-reset").addEventListener("click",function(){bN1=0;bN0=0;drawBeta()});
+
+/* ---- Exact expected redundancy, Bernoulli ---- */
+function redundancy(n,th){
+  var lt=Math.log(th),l1=Math.log(1-th),rk=0,rl=0,lg=lgamma(n+1);
+  for(var k=0;k<=n;k++){
+    var lp=k*lt+(n-k)*l1,pm=Math.exp(lg-lgamma(k+1)-lgamma(n-k+1)+lp);
+    if(pm<1e-300)continue;
+    rk+=pm*(lp-(lgamma(k+0.5)+lgamma(n-k+0.5)-Math.log(Math.PI)-lg));
+    rl+=pm*(lp-(lgamma(k+1)+lgamma(n-k+1)-lgamma(n+2)));
+  }
+  return [rk/LN2,rl/LN2];
+}
+var NS=(function(){var a=[],s={};for(var i=0;i<=48;i++){var n=Math.round(Math.pow(1000,i/48));if(!s[n]){s[n]=1;a.push(n)}}return a})();
+function drawRed(){
+  var th=+$("r-theta").value;$("r-theta-v").textContent=fmt(th,2);
+  var kt=[],lap=[],asy=[],top=0;
+  NS.forEach(function(n){var r=redundancy(n,th);kt.push(r[0]);lap.push(r[1]);var a=0.5*Math.log2(n)+0.5*Math.log2(Math.PI/(2*Math.E));asy.push(a);top=Math.max(top,r[0],r[1],a)});
+  top=Math.ceil(top+0.2);
+  var W=460,H=250,ml=34,mr=92,mt=14,mb=34;
+  var X=function(n){return ml+(W-ml-mr)*Math.log10(n)/3},Y=function(v){return H-mb-(H-mt-mb)*Math.max(v,0)/top};
+  var path=function(arr){return arr.map(function(v,i){return(i?"L":"M")+X(NS[i]).toFixed(1)+","+Y(v).toFixed(1)}).join("")};
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Expected redundancy against sequence length">';
+  for(var t=1;t<=top;t++){s+='<path class="grid" d="M'+ml+','+Y(t)+'H'+(W-mr)+'"/><text x="'+(ml-6)+'" y="'+(Y(t)+4)+'" text-anchor="end">'+t+'</text>'}
+  s+='<path class="ax" d="M'+ml+','+mt+'V'+(H-mb)+'H'+(W-mr)+'"/>';
+  [1,10,100,1000].forEach(function(n){s+='<text x="'+X(n)+'" y="'+(H-mb+15)+'" text-anchor="middle">'+n+'</text>'});
+  s+='<text x="'+(W-mr)+'" y="'+(H-4)+'" text-anchor="end">sequence length n (log scale)</text><text x="'+ml+'" y="10">bits</text>';
+  s+='<path class="ref" d="'+path(asy)+'"/><path class="l0" d="'+path(lap)+'"/><path class="l1" d="'+path(kt)+'"/>';
+  var L=NS.length-1,labels=[{y:Y(kt[L]),t:"KT (+½)",c:"t1"},{y:Y(lap[L]),t:"Laplace (+1)",c:"t0"},{y:Y(asy[L]),t:"½log₂n − 0.40",c:""}];
+  labels.sort(function(p,q){return p.y-q.y});
+  for(var i=1;i<labels.length;i++){if(labels[i].y-labels[i-1].y<13)labels[i].y=labels[i-1].y+13}
+  labels.forEach(function(l){s+='<text class="'+l.c+'" x="'+(W-mr+6)+'" y="'+(l.y+4)+'">'+l.t+'</text>'});
+  $("r-chart").innerHTML=s+'</svg>';
+  var dk=kt[L],dl=lap[L];
+  $("r-note").textContent="At n = 1000, KT pays "+fmt(dk,2)+" bits and Laplace "+fmt(dl,2)+". "+(dl<dk?"In the middle of the range Laplace is a little cheaper.":"Near the edge Laplace becomes expensive.")+" KT pays almost the same for every θ. That is what minimax means, and you will prove it.";
+}
+$("r-theta").addEventListener("input",drawRed);
+
+/* ---- Context tree demo: source with leaves 1, 00, 10 ---- */
+var TD=3,tRand,tCtw,TRUE={"1":0.5,"00":1/3,"10":0.25};
+function tReset(){tRand=rng(2026);tCtw=new CTW(TD)}
+function tTheta(){var h=tCtw.hist,n=h.length,last=n>=1?h[n-1]:0,prev=n>=2?h[n-2]:0;return last===1?TRUE["1"]:(prev===0?TRUE["00"]:TRUE["10"])}
+function tDraw(k){for(var i=0;i<k;i++){tCtw.step(tRand()<tTheta()?1:0,true)}drawTree()}
+function drawTree(){
+  var W=720,H=300,ys=[34,112,190,262],pos={"":{x:360,d:0}};
+  var lay=function(key,x,d,span){pos[key]={x:x,d:d};if(d<TD){lay("0"+key,x-span,d+1,span/2);lay("1"+key,x+span,d+1,span/2)}};
+  /* root's children are the contexts "0" and "1" (most recent symbol) */
+  pos={};pos[""]={x:360,d:0};
+  (function rec(key,x,d,span){pos[key]={x:x,d:d};if(d<TD){rec("0"+key,x-span,d+1,span/2);rec("1"+key,x+span,d+1,span/2)}})("",360,0,180);
+  var prob={};
+  (function rec(key,d,reach){
+    var nd=tCtw.get(key),lam=d===TD?1:Math.min(1,0.5*Math.exp(nd.le-nd.lw));
+    prob[key]=reach*lam;
+    if(d<TD){rec("0"+key,d+1,reach*(1-lam));rec("1"+key,d+1,reach*(1-lam))}
+  })("",0,1);
+  var full=tCtw.ctx(TD),active={};for(var d=0;d<=TD;d++)active[full.slice(TD-d)]=1;
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Context tree with posterior leaf probabilities">';
+  Object.keys(pos).forEach(function(k){var p=pos[k];if(p.d<TD){["0","1"].forEach(function(b){var c=pos[b+k];
+    s+='<path class="ax" d="M'+p.x+','+ys[p.d]+'L'+c.x+','+ys[c.d]+'"/>';
+    s+='<text class="'+(b==="1"?"t1":"t0")+'" x="'+((p.x+c.x)/2+(b==="0"?-10:10))+'" y="'+((ys[p.d]+ys[c.d])/2-2)+'" text-anchor="middle">'+b+'</text>'})}});
+  Object.keys(pos).forEach(function(k){var p=pos[k],y=ys[p.d],pr=prob[k],nd=tCtw.get(k);
+    s+='<circle cx="'+p.x+'" cy="'+y+'" r="15" style="fill:var(--surface)"/>';
+    s+='<circle cx="'+p.x+'" cy="'+y+'" r="15" style="fill:var(--one);fill-opacity:'+pr.toFixed(3)+';stroke:var(--rule);stroke-width:1"/>';
+    if(TRUE[k]!==undefined)s+='<circle cx="'+p.x+'" cy="'+y+'" r="19" style="fill:none;stroke:var(--ink);stroke-width:2"/>';
+    if(active[k])s+='<circle cx="'+p.x+'" cy="'+y+'" r="23" style="fill:none;stroke:var(--zero);stroke-width:2;stroke-dasharray:4 3"/>';
+    s+='<text class="ti" x="'+p.x+'" y="'+(y+34)+'" text-anchor="middle">'+(k===""?"root":"…"+k)+' · '+Math.round(100*pr)+'%</text>';
+  });
+  $("t-chart").innerHTML=s+'</svg>';
+  var n=tCtw.hist.length,p1=tCtw.step(1,false);
+  $("t-count").textContent=n+" symbols observed";
+  var best=Object.keys(TRUE).map(function(k){return "…"+k+" "+Math.round(100*prob[k])+"%"}).join(", ");
+  $("t-note").textContent="Next symbol: CTW gives P(1) = "+fmt(p1,3)+", the source uses "+fmt(tTheta(),3)+". Belief in the three real leaves: "+best+".";
+}
+$("t-1").addEventListener("click",function(){tDraw(1)});
+$("t-50").addEventListener("click",function(){tDraw(100)});
+$("t-500").addEventListener("click",function(){tDraw(1000)});
+$("t-reset").addEventListener("click",function(){tReset();drawTree()});
+
+/* ---- Notebook: entries live in notebook.js ---- */
+var NB=window.NOTEBOOK||{},ANNOUNCEMENTS=NB.announcements||[],SESSIONS=NB.sessions||[];
+(function(){
+  var box=$("log");
+  ANNOUNCEMENTS.concat(SESSIONS).forEach(function(e){
+    var row=document.createElement("div"),a=document.createElement("span"),b=document.createElement("span");
+    a.textContent=e.when;b.textContent=e.text;row.appendChild(a);row.appendChild(b);box.appendChild(row);
+  });
+  $("sessions-empty").hidden=SESSIONS.length>0;
+})();
+
+drawGame();bDraw(12,true);drawRed();tReset();tDraw(300);
+})();
+</script>
+</body>
+</html>
